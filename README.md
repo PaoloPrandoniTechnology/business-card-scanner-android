@@ -11,8 +11,8 @@ Nessun server, nessun account cloud dell'app, nessun dato del biglietto inviato 
 
 ## Download (alpha)
 
-APK di prova: **[business-card-scanner-0.1.0-alpha.apk](https://github.com/PaoloPrandoniTechnology/business-card-scanner-android/releases/download/v0.1.0-alpha/business-card-scanner-0.1.0-alpha.apk)**
-— release [v0.1.0-alpha](https://github.com/PaoloPrandoniTechnology/business-card-scanner-android/releases/tag/v0.1.0-alpha).
+APK di prova: **[business-card-scanner-0.1.1-alpha.apk](https://github.com/PaoloPrandoniTechnology/business-card-scanner-android/releases/download/v0.1.1-alpha/business-card-scanner-0.1.1-alpha.apk)**
+— release [v0.1.1-alpha](https://github.com/PaoloPrandoniTechnology/business-card-scanner-android/releases/tag/v0.1.1-alpha).
 
 Sul telefono serve consentire l'installazione da origini sconosciute
 (Impostazioni → App → Accesso speciale → Installa app sconosciute); l'APK è firmato con la chiave

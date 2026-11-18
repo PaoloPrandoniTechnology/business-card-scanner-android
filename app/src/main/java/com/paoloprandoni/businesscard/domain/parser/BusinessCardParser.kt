@@ -29,7 +29,12 @@ class BusinessCardParser {
 
     private enum class PhoneType { MOBILE, WORK, FAX, UNKNOWN }
 
-    private data class PhoneHit(val number: String, val type: PhoneType)
+    private data class PhoneHit(
+        val number: String,
+        val type: PhoneType,
+        /** Tipo dedotto dal formato del numero, non da un'etichetta esplicita. */
+        val inferred: Boolean = false,
+    )
 
     fun parse(ocr: OcrResult): BusinessCardData {
         val lines = buildLines(ocr)
@@ -84,13 +89,28 @@ class BusinessCardParser {
         val phoneOverflow = mutableListOf<String>()
         for (hit in phoneHits) {
             when (hit.type) {
-                PhoneType.FAX -> if (fax.isBlank()) fax = hit.number else phoneOverflow += hit.number
-                PhoneType.WORK -> if (work.isBlank()) work = hit.number else phoneOverflow += hit.number
-                PhoneType.MOBILE -> if (mobile.isBlank()) mobile = hit.number else phoneOverflow += hit.number
-                PhoneType.UNKNOWN -> when {
-                    mobile.isBlank() -> mobile = hit.number
-                    work.isBlank() -> work = hit.number
-                    else -> phoneOverflow += hit.number
+                PhoneType.FAX -> {
+                    if (fax.isBlank()) fax = hit.number else phoneOverflow += hit.number
+                }
+                PhoneType.MOBILE -> {
+                    if (mobile.isBlank()) mobile = hit.number else phoneOverflow += hit.number
+                }
+                PhoneType.WORK -> {
+                    when {
+                        work.isBlank() -> work = hit.number
+                        // Secondo numero fisso senza etichetta: sui biglietti è quasi sempre il fax
+                        // (la "F" iniziale spesso non viene letta dall'OCR).
+                        hit.inferred && fax.isBlank() -> fax = hit.number
+                        else -> phoneOverflow += hit.number
+                    }
+                }
+                PhoneType.UNKNOWN -> {
+                    when {
+                        mobile.isBlank() -> mobile = hit.number
+                        work.isBlank() -> work = hit.number
+                        hit.inferred && fax.isBlank() -> fax = hit.number
+                        else -> phoneOverflow += hit.number
+                    }
                 }
             }
         }
@@ -256,12 +276,33 @@ class BusinessCardParser {
                 .lowercase()
             val after = line.substring(match.range.last + 1).take(24).lowercase()
             val context = before.ifBlank { after }
-            hits += PhoneHit(formatPhone(rawNumber), classifyPhone(context, rawNumber))
+            hits += PhoneHit(
+                number = formatPhone(rawNumber),
+                type = classifyPhone(context, rawNumber),
+                inferred = !hasExplicitLabel(context),
+            )
         }
         return hits
     }
 
+    /** Vero se il numero è preceduto da un'etichetta (T, M, F, Tel, Cell, Fax...). */
+    private fun hasExplicitLabel(context: String): Boolean {
+        val label = context.trim().trim(':', '.', '-', ' ').lowercase()
+        if (label in setOf("t", "tel", "ph", "u", "m", "mob", "cell", "c", "f", "fax", "tf")) {
+            return true
+        }
+        return KeywordDictionaries.FAX_WORDS.any { context.contains(it) } ||
+            KeywordDictionaries.MOBILE_WORDS.any { context.contains(it) } ||
+            KeywordDictionaries.WORK_WORDS.any { context.contains(it) }
+    }
+
     private fun classifyPhone(context: String, number: String): PhoneType {
+        // Etichette compatte molto comuni sui biglietti: "T" telefono, "M" mobile, "F" fax.
+        when (context.trim().trim(':', '.', '-', ' ').lowercase()) {
+            "t", "tel", "ph", "u" -> return PhoneType.WORK
+            "m", "mob", "cell", "c" -> return PhoneType.MOBILE
+            "f", "fax", "tf" -> return PhoneType.FAX
+        }
         if (KeywordDictionaries.FAX_WORDS.any { context.contains(it) }) return PhoneType.FAX
         if (KeywordDictionaries.MOBILE_WORDS.any { context.contains(it) }) return PhoneType.MOBILE
         if (KeywordDictionaries.WORK_WORDS.any { context.contains(it) }) return PhoneType.WORK
@@ -316,6 +357,18 @@ class BusinessCardParser {
             if (words.size < 2 || words.size > 5) return@forEach
             if (words.all { it.length <= 2 }) return@forEach
 
+            // Un nome proprio noto (o un titolo) è il segnale più affidabile: su molti
+            // biglietti il nome sta in basso, quindi la posizione non può dominare.
+            val nameTokens = text
+                .replace(HONORIFIC_REGEX, "")
+                .split(" ")
+                .map { token -> token.trim('.', ',', ';', ':').lowercase() }
+                .filter { token -> token.isNotBlank() }
+            val hasKnownFirstName = nameTokens.any { token ->
+                token in KeywordDictionaries.FIRST_NAMES
+            }
+            val isAllCaps = text == text.uppercase()
+
             var score = 1.0
             if (line.height >= medianHeight * 1.15f) score += 2.0
             if (line.height >= medianHeight * 1.4f) score += 1.0
@@ -329,7 +382,10 @@ class BusinessCardParser {
             if (words.size in 2..3) score += 0.6
             if (words.all { it.firstOrNull()?.isUpperCase() == true }) score += 0.8
             if (HONORIFIC_REGEX.containsMatchIn(text)) score += 0.5
-            if (line.index >= half) score -= 1.5
+            if (hasKnownFirstName) score += 3.0
+            // Riga tutta in maiuscolo senza nome proprio: spesso è un payoff/tagline.
+            if (isAllCaps && !hasKnownFirstName) score -= 1.2
+            if (line.index >= half) score -= 0.8
             if (words.any { it.length == 1 }) score -= 0.4
             if (score > bestScore) {
                 bestScore = score

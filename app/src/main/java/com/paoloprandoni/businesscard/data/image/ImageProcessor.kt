@@ -116,12 +116,15 @@ class ImageProcessor {
         maxDimension: Int,
     ): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        runCatching {
+        // Attenzione: con inJustDecodeBounds la decodifica restituisce sempre null, quindi
+        // l'esito va valutato su un flag esplicito e non sul valore di ritorno di decodeStream.
+        val readBounds = runCatching {
             resolver.openInputStream(uri)?.use { stream ->
                 BitmapFactory.decodeStream(stream, null, bounds)
-            }
-        }.getOrNull() ?: return null
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+                true
+            } ?: false
+        }.getOrDefault(false)
+        if (!readBounds || bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
         val options = BitmapFactory.Options().apply {
             inSampleSize = calculateSampleSize(bounds.outWidth, bounds.outHeight, maxDimension)

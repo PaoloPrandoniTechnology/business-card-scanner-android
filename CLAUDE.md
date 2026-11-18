@@ -20,6 +20,7 @@ scegliendo l'account di destinazione.
 | M7 — Build `assembleDebug` + APK | ✅ completata |
 | M8 — Repository GitHub privata (commit + push) | ✅ completata |
 | M9 — Release alpha `v0.1.0-alpha` con APK allegato | ✅ completata |
+| M10 — Fix import immagini + verifica end-to-end su emulatore API 34 | ✅ completata |
 
 Repository privata: <https://github.com/PaoloPrandoniTechnology/business-card-scanner-android>
 (branch `main`, remote `origin`).
@@ -221,10 +222,13 @@ Requisiti: JDK 17+ (testato con JDK 21), Android SDK platform 35 + build-tools 3
 ### Verifiche eseguite
 
 - `./gradlew assembleDebug` → BUILD SUCCESSFUL, APK generato e ispezionato con `aapt2 dump badging`.
-- Estrazione dati validata su un biglietto di esempio (nome + titolo, azienda, ruolo, cellulare,
-  ufficio, fax, email, sito, indirizzo, P.IVA nelle note): tutti i campi classificati correttamente.
-- Non verificato: esecuzione su dispositivo/emulatore (nessun device collegato durante la build),
-  quindi UI, permessi runtime e salvataggio reale in rubrica sono da provare sul telefono.
+- **Emulatore API 34** (x86_64, 1080×2280) con biglietto reale: `PipelineInstrumentedTest`
+  (`app/src/androidTest/`, asset `sample_card.webp`) superato — import immagine, OCR ML Kit e
+  parsing di nome, azienda, cellulare/ufficio/fax, email, sito, indirizzo e note.
+- **Flusso UI completo su emulatore**: galleria → OCR → revisione → ritaglio logo → salvataggio.
+  Contatto verificato con `content query`: 9 righe `Data` (nome, organizzazione, 3 telefoni, email,
+  sito, indirizzo strutturato, note con testo OCR, foto).
+- Estrazione validata anche su un biglietto sintetico con titolo, ruolo e P.IVA (test JVM).
 
 ---
 
@@ -239,3 +243,9 @@ Requisiti: JDK 17+ (testato con JDK 21), Android SDK platform 35 + build-tools 3
   il deliverable richiesto è `assembleDebug`.
 - L'app è in italiano; le stringhe dell'interfaccia sono in italiano, `app_name` e i testi dei
   permessi sono in `res/values/strings.xml`.
+- **Bug corretto (v0.1.1-alpha):** l'import immagine restituiva sempre null perché il risultato
+  di `BitmapFactory.decodeStream` con `inJustDecodeBounds` (sempre null) veniva interpretato come
+  errore di lettura; ora l'esito è valutato su un flag esplicito. Il test strumentato copre questo
+  caso per evitare regressioni.
+- Il suggerimento del box di ritaglio resta dentro l'area del biglietto (unione dei boundingBox) e
+  preferisce la riga "brand" più grande nella parte alta, con fallback sull'area senza testo.
