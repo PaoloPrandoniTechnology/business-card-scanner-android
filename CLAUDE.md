@@ -19,9 +19,14 @@ scegliendo l'account di destinazione.
 | M6 — Salvataggio contatto (`ContentProviderOperation` batch, photo blob compressa) | ✅ completata |
 | M7 — Build `assembleDebug` + APK | ✅ completata |
 | M8 — Repository GitHub privata (commit + push) | ✅ completata |
+| M9 — Release alpha `v0.1.0-alpha` con APK allegato | ✅ completata |
 
 Repository privata: <https://github.com/PaoloPrandoniTechnology/business-card-scanner-android>
 (branch `main`, remote `origin`).
+
+Release di prova: `v0.1.0-alpha` (prerelease) con APK debug allegato —
+<https://github.com/PaoloPrandoniTechnology/business-card-scanner-android/releases/tag/v0.1.0-alpha>.
+Gli APK non sono versionati nel repository (`*.apk` in `.gitignore`), vengono solo allegati alle release.
 
 Ultima verifica: `./gradlew assembleDebug` → **BUILD SUCCESSFUL**, APK in
 `app/build/outputs/apk/debug/app-debug.apk` (~60 MB, include il modello OCR bundled).
