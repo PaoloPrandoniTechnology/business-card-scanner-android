@@ -21,6 +21,7 @@ scegliendo l'account di destinazione.
 | M8 — Repository GitHub privata (commit + push) | ✅ completata |
 | M9 — Release alpha `v0.1.0-alpha` con APK allegato | ✅ completata |
 | M10 — Fix import immagini + verifica end-to-end su emulatore API 34 | ✅ completata |
+| M11 — README completo con screenshot + regola di manutenzione README | ✅ completata |
 
 Repository privata: <https://github.com/PaoloPrandoniTechnology/business-card-scanner-android>
 (branch `main`, remote `origin`).
@@ -79,6 +80,7 @@ Nessuna libreria di terze parti oltre a Google/AndroidX.
 .
 ├── CLAUDE.md                     # questo file (regole + architettura + stato)
 ├── README.md                     # presentazione del progetto (visibile sulla repo GitHub)
+├── docs/screenshots/             # screenshot usati nel README (da emulatore API 34)
 ├── .gitignore                    # esclude build/, .gradle/, .backups/, .androidsdk/, local.properties
 ├── settings.gradle.kts           # repo google()/mavenCentral(), inclusione :app
 ├── build.gradle.kts              # plugin dichiarati apply false
@@ -183,11 +185,14 @@ Home ──"Scansiona"──▶ Camera (CameraX) ──foto──┐
    Vale per QUALSIASI file già esistente: `CLAUDE.md`, Gradle, Kotlin, XML, manifest.
    `.backups/` è in `.gitignore` e non va mai committato.
 
-2. **`CLAUDE.md` va aggiornato** a ogni milestone, nuova funzionalità o modifica strutturale
-   (architettura, dipendenze, struttura cartelle, stato).
+2. **`CLAUDE.md` e `README.md` vanno aggiornati** a ogni milestone, nuova funzionalità o modifica
+   strutturale (architettura, dipendenze, struttura cartelle, stato). A ogni release il README
+   aggiorna versione/stato in testa, screenshot (`docs/screenshots/`), changelog e roadmap: è la
+   vetrina del progetto sulla repository GitHub.
 
-3. **Kotlin only**, Coroutines/Flow, MVVM + UDF. Nessun accesso di rete: l'OCR è on-device e
-   l'app non dichiara `INTERNET`.
+3. **Kotlin only**, Coroutines/Flow, MVVM + UDF. Nessun accesso di rete nel codice: l'OCR è
+   on-device. `INTERNET`/`ACCESS_NETWORK_STATE` compaiono nel manifest solo perché li aggiunge la
+   dipendenza transitiva `com.google.android.datatransport` di ML Kit (logging interno dell'SDK).
 
 4. **Compose + Material 3**, tema chiaro/scuro, edge-to-edge, nessuna View XML (solo `PreviewView`
    CameraX via `AndroidView`).
