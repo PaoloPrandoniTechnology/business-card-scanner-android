@@ -9,11 +9,11 @@ Nessun server, nessun account dell'app, nessun dato del biglietto inviato in ret
 
 | | |
 |---|---|
-| **Versione** | `0.2.0-alpha` (pre-release, APK release firmato) |
+| **Versione** | `0.3.0-beta` (beta, APK release firmato) |
 | **Requisiti** | Android 8.0+ (`minSdk 26`) · `targetSdk 35` |
 | **APK** | ~54 MB release firmata (modello OCR incluso, nessun download a runtime) |
 | **Lingua UI** | Italiano |
-| **Stato** | Alpha — flusso completo funzionante e verificato su emulatore API 34 |
+| **Stato** | Beta — flusso completo funzionante e verificato su emulatore API 34 |
 
 ---
 
@@ -303,6 +303,16 @@ presente) oppure su `null`/`null` per la memoria locale del telefono.
 ---
 
 ## Changelog
+
+### v0.3.0-beta — 2026-11-18
+
+Prima **beta**: nessuna nuova funzione, solo rifiniture di interfaccia e affidabilità.
+
+- **Layout a filo della barra di sistema**: le barre inferiori rispettano gli inset della
+  navigazione Android (`navigationBarsPadding()`), quindi "Ritaglia/Annulla" e "Salva in rubrica"
+  non finiscono più sotto i tasti di sistema; verificato con la navigazione a 3 pulsanti.
+- Il suggerimento nella schermata di ritaglio è su due righe corte e non viene più tagliato ai lati.
+- Spazio extra (16 dp) sotto la barra del ritaglio per non avere i pulsanti a ridosso del bordo.
 
 ### v0.2.0-alpha — 2026-11-18
 

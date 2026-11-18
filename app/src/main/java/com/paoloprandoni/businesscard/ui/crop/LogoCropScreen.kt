@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -151,7 +152,8 @@ fun LogoCropScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                        .navigationBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -418,9 +420,10 @@ fun LogoCropScreen(
             }
 
             Text(
-                text = "Angoli: ridimensiona · maniglia in alto: ruota",
+                text = "Maniglia in alto: ruota\nAngoli: ridimensiona",
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
+                maxLines = 2,
                 color = Color.White.copy(alpha = 0.85f),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

@@ -24,6 +24,7 @@ scegliendo l'account di destinazione.
 | M11 — README completo con screenshot + regola di manutenzione README | ✅ completata |
 | M12 — Firma release stabile (keystore dedicato) + APK release installabile/aggiornabile | ✅ completata |
 | M13 — Ritaglio logo ruotabile (`CropFrame`) + 10 test JVM | ✅ completata |
+| M14 — Layout edge-to-edge: barre inferiori con inset di sistema (beta 0.3.0) | ✅ completata |
 
 Repository privata: <https://github.com/PaoloPrandoniTechnology/business-card-scanner-android>
 (branch `main`, remote `origin`).
@@ -37,7 +38,7 @@ Ultima verifica: `./gradlew assembleDebug` → **BUILD SUCCESSFUL**, APK in
 `./gradlew assembleRelease` → **BUILD SUCCESSFUL**, APK firmato in
 `app/build/outputs/apk/release/app-release.apk` (~54 MB), verificato con `apksigner verify`
 (certificato `CN=Paolo Prandoni, OU=Business Card Scanner`, schema V1+V2+V3).
-`aapt2 dump badging` conferma: `package com.paoloprandoni.businesscard`, versione `0.2.0-alpha`,
+`aapt2 dump badging` conferma: `package com.paoloprandoni.businesscard`, versione `0.3.0-beta`,
 `minSdkVersion 26`, `targetSdkVersion 35`, `compileSdkVersion 35`, permessi `CAMERA`,
 `READ_CONTACTS`, `WRITE_CONTACTS`, `GET_ACCOUNTS`.
 
@@ -268,6 +269,8 @@ dal Play Store. Le contromisure realmente efficaci sono:
   parsing di nome, azienda, cellulare/ufficio/fax, email, sito, indirizzo e note.
 - **Screenshot del README** rigenerati sull'emulatore API 34 con il biglietto da visita dell'autore
   (nessun biglietto di clienti pubblicato): home, fotocamera, revisione, ritaglio logo, contatto salvato.
+- **Layout con navigazione a 3 pulsanti** su emulatore: barra del ritaglio e pulsante "Salva in
+  rubrica" sopra la barra di sistema (verificato con `uiautomator dump`: ~72 dp dal fondo).
 - **Rotazione del ritaglio** su emulatore: maniglia trascinata (−4,5°) e slider (−21°), con
   anteprima nella revisione che mostra il logo ruotato; `./gradlew testDebugUnitTest` →
   `CropFrameTest` 10/10 verde.
@@ -293,6 +296,10 @@ dal Play Store. Le contromisure realmente efficaci sono:
   di `BitmapFactory.decodeStream` con `inJustDecodeBounds` (sempre null) veniva interpretato come
   errore di lettura; ora l'esito è valutato su un flag esplicito. Il test strumentato copre questo
   caso per evitare regressioni.
+- **Inset di sistema (v0.3.0-beta):** l'app è edge-to-edge (`enableEdgeToEdge`), quindi ogni
+  barra inferiore deve applicare `Modifier.navigationBarsPadding()` (ritaglio, revisione,
+  fotocamera); il contenuto delle schermate con `Scaffold` riceve già gli inset di sistema. Senza
+  padding i pulsanti finiscono sotto la barra di navigazione Android.
 - **Rotazione del ritaglio (v0.2.0-alpha):** manuale (maniglia sopra il bordo o slider ±90°, passo
   0,5° con aggancio a 0/45/90). Non c'è rilevamento automatico dell'inclinazione: su sfondi
   texturizzati produrrebbe angoli sbagliati. Geometria in `domain/crop/CropFrame.kt` con test JVM.
