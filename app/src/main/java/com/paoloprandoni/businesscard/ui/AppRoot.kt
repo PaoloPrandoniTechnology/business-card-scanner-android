@@ -11,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -24,24 +25,33 @@ import com.paoloprandoni.businesscard.ui.components.PermissionExplanationDialog
 import com.paoloprandoni.businesscard.ui.components.findActivity
 import com.paoloprandoni.businesscard.ui.components.hasPermission
 import com.paoloprandoni.businesscard.ui.components.openAppSettings
-import com.paoloprandoni.businesscard.ui.crop.LogoCropScreen
+import com.paoloprandoni.businesscard.ui.crop.CropEditorScreen
+import com.paoloprandoni.businesscard.ui.crop.CropStartShape
 import com.paoloprandoni.businesscard.ui.review.ReviewScreen
 import com.paoloprandoni.businesscard.ui.review.ReviewViewModel
 import com.paoloprandoni.businesscard.ui.scan.HomeScreen
 import com.paoloprandoni.businesscard.ui.scan.ScanViewModel
+import kotlinx.coroutines.launch
 
 /** Schermate dell'app (navigazione a stati, UDF). */
 sealed interface AppScreen {
     data object Home : AppScreen
     data object Camera : AppScreen
     data object Review : AppScreen
+
+    /** Ritaglio del logo del contatto dall'immagine della sessione. */
     data class Crop(val imagePath: String) : AppScreen
+
+    /** Scelta dell'area di scansione (ROI) prima dell'OCR, dopo l'import da galleria. */
+    data class Region(val imagePath: String) : AppScreen
 }
 
 @Composable
 fun BusinessCardApp() {
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
+    val scope = rememberCoroutineScope()
+    val imageProcessor = remember { ServiceLocator.imageProcessor }
     val scanViewModel: ScanViewModel = viewModel(factory = ScanViewModel.factory())
     val reviewViewModel: ReviewViewModel = viewModel(factory = ReviewViewModel.factory())
     val scanState by scanViewModel.ui.collectAsStateWithLifecycle()
@@ -53,7 +63,17 @@ fun BusinessCardApp() {
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia(),
     ) { uri: Uri? ->
-        if (uri != null) scanViewModel.processImage(context, uri)
+        if (uri != null) {
+            scope.launch {
+                val file = imageProcessor.importImage(context, uri)
+                if (file == null) {
+                    scanViewModel.reportError("Impossibile leggere l'immagine selezionata.")
+                } else {
+                    // Prima si sceglie l'area del biglietto: l'OCR lavorerà solo su quella.
+                    screen = AppScreen.Region(file.absolutePath)
+                }
+            }
+        }
     }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
@@ -111,9 +131,9 @@ fun BusinessCardApp() {
         )
 
         AppScreen.Camera -> CameraScreen(
-            onPhotoCaptured = { file ->
+            onPhotoCaptured = { file, roi, viewSize ->
                 screen = AppScreen.Home
-                scanViewModel.processImage(context, Uri.fromFile(file))
+                scanViewModel.processImage(context, Uri.fromFile(file), roi, viewSize)
             },
             onClose = { screen = AppScreen.Home },
             onOpenGallery = launchGallery,
@@ -134,15 +154,30 @@ fun BusinessCardApp() {
             onBack = { screen = AppScreen.Home },
         )
 
-        is AppScreen.Crop -> LogoCropScreen(
+        is AppScreen.Crop -> CropEditorScreen(
             imagePath = current.imagePath,
-            initialRect = ServiceLocator.scanSession.current()?.logoHint,
-            imageProcessor = ServiceLocator.imageProcessor,
+            title = "Ritaglia logo",
+            confirmLabel = "Ritaglia",
+            imageProcessor = imageProcessor,
+            initialNormalized = ServiceLocator.scanSession.current()?.logoHint,
             onConfirm = { bitmap ->
                 reviewViewModel.onLogoCropped(context, bitmap)
                 screen = AppScreen.Review
             },
             onCancel = { screen = AppScreen.Review },
+        )
+
+        is AppScreen.Region -> CropEditorScreen(
+            imagePath = current.imagePath,
+            title = "Area di scansione",
+            confirmLabel = "Analizza",
+            imageProcessor = imageProcessor,
+            startShape = CropStartShape.CARD,
+            onConfirm = { bitmap ->
+                screen = AppScreen.Home
+                scanViewModel.processBitmap(context, bitmap)
+            },
+            onCancel = { screen = AppScreen.Home },
         )
     }
 

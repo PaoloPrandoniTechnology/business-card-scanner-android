@@ -15,8 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.automirrored.rounded.RotateLeft
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -75,6 +75,15 @@ private const val ANGLE_SNAP_TOLERANCE = 2f
 private const val ROTATION_HANDLE_DP = 36f
 private const val SLIDER_MAX_ANGLE = 90f
 
+/** Forma proposta all'apertura quando non c'è un suggerimento. */
+enum class CropStartShape {
+    /** Quadrato piccolo in alto a sinistra (logo). */
+    SQUARE,
+
+    /** Rettangolo centrato con proporzioni da biglietto da visita (area di scansione). */
+    CARD,
+}
+
 private sealed interface DragMode {
     data object None : DragMode
     data object Move : DragMode
@@ -91,17 +100,21 @@ private data class Fit(val scale: Float, val offsetX: Float, val offsetY: Float)
 }
 
 /**
- * Ritaglio interattivo del logo: immagine su Canvas con box ridimensionabile dalle maniglie
- * angolari, trascinamento dell'area, rotazione con la maniglia in alto o con lo slider e vincolo
- * opzionale 1:1. La rotazione serve a raddrizzare il logo quando il biglietto è stato fotografato
- * storto: il ritaglio viene ruotato e restituito dritto.
+ * Editor di ritaglio riutilizzabile: immagine su Canvas con rettangolo ridimensionabile dalle
+ * maniglie, trascinabile, ruotabile (maniglia in alto o slider) e vincolo opzionale 1:1.
+ *
+ * Usato sia per il logo del contatto sia per scegliere l'area di scansione (ROI) da passare
+ * all'OCR quando si importa un'immagine dalla galleria.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LogoCropScreen(
+fun CropEditorScreen(
     imagePath: String,
-    initialRect: RectF?,
+    title: String,
+    confirmLabel: String,
     imageProcessor: ImageProcessor,
+    initialNormalized: RectF? = null,
+    startShape: CropStartShape = CropStartShape.SQUARE,
     onConfirm: (Bitmap) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -122,16 +135,24 @@ fun LogoCropScreen(
         val source = bitmap ?: return@LaunchedEffect
         val imageWidth = source.width.toFloat()
         val imageHeight = source.height.toFloat()
-        val initial = initialRect?.let { hint ->
+        val initial = initialNormalized?.let { hint ->
             CropFrame(
                 centerX = (hint.left + hint.right) / 2f * imageWidth,
                 centerY = (hint.top + hint.bottom) / 2f * imageHeight,
                 width = (hint.right - hint.left) * imageWidth,
                 height = (hint.bottom - hint.top) * imageHeight,
             )
-        } ?: run {
-            val side = min(imageWidth, imageHeight) * 0.34f
-            CropFrame(centerX = imageWidth * 0.23f, centerY = imageHeight * 0.23f, width = side, height = side)
+        } ?: when (startShape) {
+            CropStartShape.SQUARE -> {
+                val side = min(imageWidth, imageHeight) * 0.34f
+                CropFrame(
+                    centerX = imageWidth * 0.23f,
+                    centerY = imageHeight * 0.23f,
+                    width = side,
+                    height = side,
+                )
+            }
+            CropStartShape.CARD -> cardFrame(imageWidth, imageHeight)
         }
         frame = initial.clamped(imageWidth, imageHeight)
     }
@@ -139,7 +160,7 @@ fun LogoCropScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Ritaglia logo") },
+                title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
                         Icon(Icons.Rounded.Close, contentDescription = "Annulla")
@@ -195,7 +216,8 @@ fun LogoCropScreen(
                             modifier = Modifier.size(20.dp),
                         )
                         Slider(
-                            value = (frame?.displayAngle ?: 0f).coerceIn(-SLIDER_MAX_ANGLE, SLIDER_MAX_ANGLE),
+                            value = (frame?.displayAngle ?: 0f)
+                                .coerceIn(-SLIDER_MAX_ANGLE, SLIDER_MAX_ANGLE),
                             onValueChange = { value ->
                                 val source = bitmap
                                 if (source != null) {
@@ -252,7 +274,7 @@ fun LogoCropScreen(
                                     color = MaterialTheme.colorScheme.onPrimary,
                                 )
                             } else {
-                                Text("Ritaglia")
+                                Text(confirmLabel)
                             }
                         }
                     }
@@ -432,6 +454,23 @@ fun LogoCropScreen(
             )
         }
     }
+}
+
+/** Rettangolo centrato con proporzioni da biglietto (1.65:1) al 92% della larghezza. */
+private fun cardFrame(imageWidth: Float, imageHeight: Float): CropFrame {
+    var width = imageWidth * 0.92f
+    var height = width / 1.65f
+    val maxHeight = imageHeight * 0.92f
+    if (height > maxHeight) {
+        height = maxHeight
+        width = height * 1.65f
+    }
+    return CropFrame(
+        centerX = imageWidth / 2f,
+        centerY = imageHeight / 2f,
+        width = width,
+        height = height,
+    )
 }
 
 /** Posizione della maniglia di rotazione in coordinate canvas, tenuta dentro l'area visibile. */

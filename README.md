@@ -9,7 +9,7 @@ Nessun server, nessun account dell'app, nessun dato del biglietto inviato in ret
 
 | | |
 |---|---|
-| **Versione** | `0.3.0-beta` (beta, APK release firmato) |
+| **Versione** | `0.4.0-beta` (beta, APK release firmato) |
 | **Requisiti** | Android 8.0+ (`minSdk 26`) · `targetSdk 35` |
 | **APK** | ~54 MB release firmata (modello OCR incluso, nessun download a runtime) |
 | **Lingua UI** | Italiano |
@@ -41,8 +41,8 @@ Nessun server, nessun account dell'app, nessun dato del biglietto inviato in ret
 | Home | Fotocamera | Revisione dati |
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/01-home.png" width="240" alt="Schermata iniziale"> | <img src="docs/screenshots/02-camera.png" width="240" alt="Fotocamera con cornice guida"> | <img src="docs/screenshots/03-review.png" width="240" alt="Revisione dei dati estratti"> |
-| **Ritaglio logo (ruotabile)** | **Contatto salvato** | |
-| <img src="docs/screenshots/04-crop.jpg" width="240" alt="Ritaglio del logo con rettangolo ruotabile"> | <img src="docs/screenshots/05-saved.png" width="240" alt="Conferma salvataggio in rubrica"> | |
+| **Ritaglio logo (ruotabile)** | **Contatto salvato** | **Area di scansione** |
+| <img src="docs/screenshots/04-crop.jpg" width="240" alt="Ritaglio del logo con rettangolo ruotabile"> | <img src="docs/screenshots/05-saved.png" width="240" alt="Conferma salvataggio in rubrica"> | <img src="docs/screenshots/06-roi.jpg" width="240" alt="Selezione dell'area di scansione dopo l'import"> |
 
 > Screenshot catturati dall'emulatore Android 14 (API 34) usando il biglietto da visita dell'autore:
 > nessun dato di clienti o terzi è pubblicato nel repository. L'anteprima della fotocamera mostra
@@ -55,6 +55,10 @@ Nessun server, nessun account dell'app, nessun dato del biglietto inviato in ret
 - **Acquisizione** — fotocamera CameraX con anteprima live, tap-to-focus (AF+AE), toggle flash e
   cornice guida per allineare il biglietto; in alternativa import dalla galleria
   (`PickVisualMedia`). L'orientamento EXIF viene corretto e l'immagine normalizzata subito.
+- **OCR limitato all'area di scansione (ROI)** — il riconoscimento analizza **solo** il rettangolo
+  scelto: con la fotocamera è la cornice guida mostrata durante lo scatto (convertita nelle
+  coordinate dell'immagine catturata), con l'import da galleria è il rettangolo che confermi nella
+  schermata "Area di scansione". Così scritte e sfondi fuori dal biglietto non entrano nei dati.
 - **OCR offline** — Google ML Kit Text Recognition v2 con **modello incluso nell'APK**: funziona in
   modalità aereo e senza download successivi.
 - **Estrazione automatica** — nome e cognome (con titoli come Ing., Dott., Avv., Arch., Prof.,
@@ -88,6 +92,9 @@ Home ──"Scansiona Biglietto"──▶ Camera (CameraX) ──foto──┐
   └──"Importa da Galleria"──(PickVisualMedia)────────────┤
                                                          ▼
                         ImageProcessor: copia in cache + correzione EXIF
+                                                         ▼
+             Ritaglio dell'area di scansione (ROI):
+             cornice della fotocamera oppure rettangolo confermato
                                                          ▼
                         ML Kit Text Recognition (on-device, offline)
                                                          ▼
@@ -188,7 +195,7 @@ Test strumentato che riproduce la pipeline reale (import immagine → OCR → pa
 biglietto di esempio incluso negli asset:
 
 ```bash
-./gradlew testDebugUnitTest             # 10 test JVM sulla geometria del ritaglio
+./gradlew testDebugUnitTest             # 16 test JVM (ritaglio + ROI della fotocamera)
 ./gradlew connectedDebugAndroidTest     # richiede un device/emulatore collegato
 ```
 
@@ -248,7 +255,9 @@ Scelte tecniche:
 - la sessione di scansione vive in `ScanSessionRepository` (solo percorsi di file in cache): nessun
   `Bitmap` viene passato tra schermate, quindi niente `TransactionTooLargeException`;
 - `ImageProcessor` normalizza orientamento EXIF e dimensione in un unico punto;
-- `ServiceLocator` fornisce le dipendenze ai ViewModel senza framework DI esterni.
+- `ServiceLocator` fornisce le dipendenze ai ViewModel senza framework DI esterni;
+- i test JVM coprono la geometria del ritaglio (`CropFrameTest`) e la conversione della cornice
+  della fotocamera in ROI normalizzata (`ViewfinderRoiTest`, 16 test totali).
 
 ```
 app/src/main/java/com/paoloprandoni/businesscard/
@@ -288,6 +297,10 @@ presente) oppure su `null`/`null` per la memoria locale del telefono.
 - ritaglio logo con anteprima nella schermata di revisione;
 - rotazione del ritaglio (maniglia trascinata e slider): il logo nell'anteprima esce ruotato,
   quindi `ImageProcessor.cropFrame` applica davvero l'angolo;
+- **ROI dell'OCR**: importando il biglietto dell'autore e selezionando solo la riga in alto, la
+  revisione riporta quel testo e **non** contiene più indirizzo ed email che stanno sotto; con la
+  fotocamera la cornice guida viene ritagliata prima dell'OCR (su emulatore, dove la scena non ha
+  testo, l'app risponde "Nessun testo riconosciuto nell'area selezionata");
 - salvataggio verificato sul database contatti: 9 righe `Data`, inclusa la foto;
 - test strumentato `connectedDebugAndroidTest` verde.
 
@@ -303,6 +316,19 @@ presente) oppure su `null`/`null` per la memoria locale del telefono.
 ---
 
 ## Changelog
+
+### v0.4.0-beta — 2026-11-18
+
+- **OCR limitato all'area di scansione**: prima il riconoscimento partiva su tutta la foto e le
+  scritte attorno al biglietto (margini, sfondo, altri fogli) finivano nei dati. Ora l'OCR riceve
+  solo il ritaglio della ROI.
+- **Fotocamera**: la ROI è la cornice guida visibile durante lo scatto, convertita nelle coordinate
+  dell'immagine catturata con la stessa logica `FILL_CENTER` dell'anteprima (`ViewfinderRoi`).
+- **Galleria**: dopo la scelta della foto si apre "Area di scansione", con un rettangolo già
+  proposto sulle proporzioni del biglietto che puoi spostare, ridimensionare e ruotare;
+  "Analizza" avvia l'OCR solo su quell'area.
+- L'editor di ritaglio è ora condiviso tra logo e area di scansione (`CropEditorScreen`).
+- 6 nuovi test JVM sulla conversione della cornice (`ViewfinderRoiTest`, 16 test totali).
 
 ### v0.3.0-beta — 2026-11-18
 
@@ -370,6 +396,8 @@ Prima **beta**: nessuna nuova funzione, solo rifiniture di interfaccia e affidab
   richiedere correzioni manuali (la revisione è interamente editabile).
 - L'OCR può sbagliare singoli caratteri (nomi di dominio, civici): i campi restano modificabili.
 - L'APK pesa ~54 MB (release firmata) perché include il modello OCR: nessun download al primo avvio.
+- La ROI è un rettangolo: se il biglietto è molto inclinato conviene raddrizzarlo con la rotazione
+  del rettangolo, altrimenti l'OCR lavora su testo ruotato.
 - La rotazione del ritaglio è manuale (maniglia o slider): non c'è un rilevamento automatico
   dell'inclinazione, per non proporre angoli sbagliati su foto con sfondi texturizzati.
 - Non è prevista sincronizzazione o cronologia: ogni biglietto è una sessione.

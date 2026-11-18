@@ -1,6 +1,7 @@
 package com.paoloprandoni.businesscard.ui.camera
 
 import android.content.Context
+import android.graphics.RectF
 import android.view.Surface
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -56,7 +57,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -76,7 +79,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
  */
 @Composable
 fun CameraScreen(
-    onPhotoCaptured: (File) -> Unit,
+    /** File scattato, cornice guida in pixel della preview e dimensione della preview. */
+    onPhotoCaptured: (File, RectF?, IntSize?) -> Unit,
     onClose: () -> Unit,
     onOpenGallery: () -> Unit,
 ) {
@@ -97,6 +101,7 @@ fun CameraScreen(
     var torchOn by remember { mutableStateOf(false) }
     var hasFlash by remember { mutableStateOf(false) }
     var focusPoint by remember { mutableStateOf<Offset?>(null) }
+    var overlaySize by remember { mutableStateOf(IntSize.Zero) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(lifecycleOwner) {
@@ -155,7 +160,12 @@ fun CameraScreen(
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                     isCapturing = false
-                    onPhotoCaptured(file)
+                    val roi = if (overlaySize.width > 0 && overlaySize.height > 0) {
+                        guideFrame(overlaySize.width.toFloat(), overlaySize.height.toFloat())
+                    } else {
+                        null
+                    }
+                    onPhotoCaptured(file, roi, overlaySize)
                 }
 
                 override fun onError(exception: ImageCaptureException) {
@@ -175,6 +185,7 @@ fun CameraScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .onSizeChanged { overlaySize = it }
                 .pointerInput(imageCapture, hasFlash) {
                     detectTapGestures { position ->
                         runCatching {
@@ -191,11 +202,8 @@ fun CameraScreen(
                 },
         ) {
             Canvas(Modifier.fillMaxSize()) {
-                val margin = size.width * 0.07f
-                val frameWidth = size.width - margin * 2f
-                val frameHeight = frameWidth / 1.65f
-                val top = (size.height - frameHeight) * 0.40f
-                val frame = Rect(margin, top, margin + frameWidth, top + frameHeight)
+                val guide = guideFrame(size.width, size.height)
+                val frame = Rect(guide.left, guide.top, guide.right, guide.bottom)
                 val scrim = Color.Black.copy(alpha = 0.42f)
 
                 drawRect(scrim, topLeft = Offset(0f, 0f), size = Size(size.width, frame.top))
@@ -363,6 +371,18 @@ fun CameraScreen(
             },
         )
     }
+}
+
+/**
+ * Cornice guida del biglietto in pixel della preview: è la stessa area che viene passata all'OCR
+ * dopo lo scatto, così il testo fuori dal riquadro non entra nei dati estratti.
+ */
+private fun guideFrame(width: Float, height: Float): RectF {
+    val margin = width * 0.07f
+    val frameWidth = width - margin * 2f
+    val frameHeight = frameWidth / 1.65f
+    val top = (height - frameHeight) * 0.40f
+    return RectF(margin, top, margin + frameWidth, top + frameHeight)
 }
 
 private suspend fun Context.awaitCameraProvider(): ProcessCameraProvider =

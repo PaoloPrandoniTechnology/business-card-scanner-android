@@ -25,6 +25,7 @@ scegliendo l'account di destinazione.
 | M12 — Firma release stabile (keystore dedicato) + APK release installabile/aggiornabile | ✅ completata |
 | M13 — Ritaglio logo ruotabile (`CropFrame`) + 10 test JVM | ✅ completata |
 | M14 — Layout edge-to-edge: barre inferiori con inset di sistema (beta 0.3.0) | ✅ completata |
+| M15 — OCR limitato alla ROI (cornice fotocamera + selezione da galleria), beta 0.4.0 | ✅ completata |
 
 Repository privata: <https://github.com/PaoloPrandoniTechnology/business-card-scanner-android>
 (branch `main`, remote `origin`).
@@ -38,7 +39,7 @@ Ultima verifica: `./gradlew assembleDebug` → **BUILD SUCCESSFUL**, APK in
 `./gradlew assembleRelease` → **BUILD SUCCESSFUL**, APK firmato in
 `app/build/outputs/apk/release/app-release.apk` (~54 MB), verificato con `apksigner verify`
 (certificato `CN=Paolo Prandoni, OU=Business Card Scanner`, schema V1+V2+V3).
-`aapt2 dump badging` conferma: `package com.paoloprandoni.businesscard`, versione `0.3.0-beta`,
+`aapt2 dump badging` conferma: `package com.paoloprandoni.businesscard`, versione `0.4.0-beta`,
 `minSdkVersion 26`, `targetSdkVersion 35`, `compileSdkVersion 35`, permessi `CAMERA`,
 `READ_CONTACTS`, `WRITE_CONTACTS`, `GET_ACCOUNTS`.
 
@@ -110,6 +111,7 @@ Nessuna libreria di terze parti oltre a Google/AndroidX.
         │   ├── core/ServiceLocator.kt
         │   ├── domain/
         │   │   ├── crop/CropFrame.kt              # rettangolo di ritaglio ruotabile (Kotlin puro)
+        │   │   ├── image/ViewfinderRoi.kt         # cornice fotocamera → ROI normalizzata
         │   │   ├── model/BusinessCardData.kt      # modello contatto + ContactAccount
         │   │   ├── model/OcrResult.kt             # astrazione output OCR (linee + boundingBox)
         │   │   ├── ocr/OcrEngine.kt               # interfaccia motore OCR
@@ -128,7 +130,7 @@ Nessuna libreria di terze parti oltre a Google/AndroidX.
         │       ├── scan/{ScanViewModel,HomeScreen}.kt
         │       ├── camera/CameraScreen.kt
         │       ├── review/{ReviewViewModel,ReviewScreen}.kt
-        │       ├── crop/LogoCropScreen.kt
+        │       ├── crop/CropEditorScreen.kt         # editor ritaglio condiviso (logo / ROI)
         │       ├── components/PermissionDialogs.kt
         │       └── theme/{Color,Theme,Type}.kt
         └── res/
@@ -149,13 +151,16 @@ Home ──"Scansiona"──▶ Camera (CameraX) ──foto──┐
                             ImageProcessor.importImage()
                        (copia in cache, EXIF corretto, JPEG)
                                                ▼
+                Ritaglio area di scansione (ROI): cornice della
+                fotocamera (ViewfinderRoi) o rettangolo confermato
+                                               ▼
                        MlKitOcrEngine.recognize(bitmap)  [offline]
                                                ▼
                        BusinessCardParser.parse(OcrResult)
                                                ▼
                        ScanSessionRepository (immagine + dati + logo)
                                                ▼
-                 ReviewScreen ◀──▶ LogoCropScreen (Canvas + gesture)
+                 ReviewScreen ◀──▶ CropEditorScreen (Canvas + gesture)
                        │
                        ▼
                  ContactsRepository.saveContact(card, photo, account)
@@ -166,6 +171,12 @@ Home ──"Scansiona"──▶ Camera (CameraX) ──foto──┐
 
 ### Dettagli chiave
 
+- **ROI dell'OCR (v0.4.0-beta):** l'OCR non vede mai l'immagine intera. Con la fotocamera la
+  cornice guida è convertita in coordinate normalizzate dell'immagine da `ViewfinderRoi`
+  (matematica `FILL_CENTER`, testata in JVM); con la galleria l'utente conferma il rettangolo in
+  `CropEditorScreen` (`CropStartShape.CARD`). In entrambi i casi `ImageProcessor.cropRegion`
+  salva il ritaglio in cache e la sessione punta a quel file, quindi OCR, logo e anteprima
+  lavorano tutti sull'area del biglietto.
 - **`ScanSessionRepository`** (in memoria, singleton) disaccoppia la scansione dalla revisione:
   contiene `imagePath` (file cache), `BusinessCardData` parsato e `logoPath` opzionale.
   Nessun `Bitmap` passa tra schermate o tra processi → niente `TransactionTooLargeException`.
@@ -269,6 +280,10 @@ dal Play Store. Le contromisure realmente efficaci sono:
   parsing di nome, azienda, cellulare/ufficio/fax, email, sito, indirizzo e note.
 - **Screenshot del README** rigenerati sull'emulatore API 34 con il biglietto da visita dell'autore
   (nessun biglietto di clienti pubblicato): home, fotocamera, revisione, ritaglio logo, contatto salvato.
+- **ROI dell'OCR** su emulatore: selezionando in galleria solo la riga in alto del biglietto, la
+  revisione contiene quel testo e non indirizzo/email sottostanti; con la fotocamera la cornice
+  guida viene ritagliata prima dell'OCR (messaggio "Nessun testo riconosciuto nell'area
+  selezionata" quando la scena non ha testo).
 - **Layout con navigazione a 3 pulsanti** su emulatore: barra del ritaglio e pulsante "Salva in
   rubrica" sopra la barra di sistema (verificato con `uiautomator dump`: ~72 dp dal fondo).
 - **Rotazione del ritaglio** su emulatore: maniglia trascinata (−4,5°) e slider (−21°), con

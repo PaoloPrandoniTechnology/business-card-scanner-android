@@ -10,6 +10,7 @@ import android.graphics.Paint
 import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
 import com.paoloprandoni.businesscard.domain.crop.CropFrame
+import com.paoloprandoni.businesscard.domain.image.NormalizedRegion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -96,15 +97,63 @@ class ImageProcessor {
     }
 
     /** Salva il logo ritagliato ad alta risoluzione (la compressione avviene solo al salvataggio). */
-    suspend fun saveLogo(context: Context, bitmap: Bitmap): File? = withContext(Dispatchers.IO) {
-        val file = File(context.cacheDir, "logo_${System.currentTimeMillis()}.jpg")
-        val saved = runCatching {
-            FileOutputStream(file).use { output ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY_LOGO, output)
-            }
-            true
-        }.getOrDefault(false)
-        if (saved && file.length() > 0L) file else null
+    suspend fun saveLogo(context: Context, bitmap: Bitmap): File? =
+        saveBitmap(context, bitmap, prefix = "logo")
+
+    /** Salva un bitmap in cache come JPEG (riusato per logo e area di scansione). */
+    suspend fun saveBitmap(context: Context, bitmap: Bitmap, prefix: String = "card"): File? =
+        withContext(Dispatchers.IO) {
+            val file = File(context.cacheDir, "${prefix}_${System.currentTimeMillis()}.jpg")
+            val saved = runCatching {
+                FileOutputStream(file).use { output ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY_LOGO, output)
+                }
+                true
+            }.getOrDefault(false)
+            if (saved && file.length() > 0L) file else null
+        }
+
+    /** Rapporto larghezza/altezza dell'immagine, letto dai soli metadati (nessun decode completo). */
+    fun imageAspect(file: File): Float? {
+        if (!file.exists()) return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        return bounds.outWidth.toFloat() / bounds.outHeight.toFloat()
+    }
+
+    /**
+     * Ritaglia una regione normalizzata (0..1) e la salva come JPEG: è l'area che verrà passata
+     * all'OCR, così il testo fuori dal biglietto non entra nei dati estratti.
+     */
+    suspend fun cropRegion(
+        context: Context,
+        source: File,
+        region: NormalizedRegion,
+    ): File? = withContext(Dispatchers.IO) {
+        val bitmap = decode(source) ?: return@withContext null
+        val left = (region.left.coerceIn(0f, 1f) * bitmap.width).toInt()
+            .coerceIn(0, (bitmap.width - 1).coerceAtLeast(0))
+        val top = (region.top.coerceIn(0f, 1f) * bitmap.height).toInt()
+            .coerceIn(0, (bitmap.height - 1).coerceAtLeast(0))
+        val right = (region.right.coerceIn(0f, 1f) * bitmap.width).toInt()
+            .coerceIn(left + 1, bitmap.width)
+        val bottom = (region.bottom.coerceIn(0f, 1f) * bitmap.height).toInt()
+            .coerceIn(top + 1, bitmap.height)
+        val width = right - left
+        val height = bottom - top
+        if (width < MIN_REGION_PIXELS || height < MIN_REGION_PIXELS) {
+            bitmap.recycle()
+            return@withContext null
+        }
+        val cropped = runCatching {
+            Bitmap.createBitmap(bitmap, left, top, width, height)
+        }.getOrNull()
+        bitmap.recycle()
+        if (cropped == null) return@withContext null
+        val file = saveBitmap(context, cropped, prefix = "roi")
+        cropped.recycle()
+        file
     }
 
     /**
@@ -211,6 +260,7 @@ class ImageProcessor {
     companion object {
         const val MAX_DECODE_DIMENSION = 2400
         const val LOGO_MAX_SIDE = 1024
+        private const val MIN_REGION_PIXELS = 48
         const val MAX_CONTACT_PHOTO_SIDE = 512
         const val CONTACT_PHOTO_QUALITY = 90
         const val MAX_CONTACT_PHOTO_BYTES = 900_000
