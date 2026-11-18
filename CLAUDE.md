@@ -72,6 +72,7 @@ Nessuna libreria di terze parti oltre a Google/AndroidX.
 ```
 .
 ├── CLAUDE.md                     # questo file (regole + architettura + stato)
+├── README.md                     # presentazione del progetto (visibile sulla repo GitHub)
 ├── .gitignore                    # esclude build/, .gradle/, .backups/, .androidsdk/, local.properties
 ├── settings.gradle.kts           # repo google()/mavenCentral(), inclusione :app
 ├── build.gradle.kts              # plugin dichiarati apply false
