@@ -14,6 +14,11 @@ captures/
 .idea/
 .vscode/
 
+# Chiave di firma release (mai versionare)
+keystore.properties
+*.jks
+*.keystore
+
 # Backup pre-modifica (regola di progetto)
 .backups/
 

@@ -22,6 +22,8 @@ scegliendo l'account di destinazione.
 | M9 — Release alpha `v0.1.0-alpha` con APK allegato | ✅ completata |
 | M10 — Fix import immagini + verifica end-to-end su emulatore API 34 | ✅ completata |
 | M11 — README completo con screenshot + regola di manutenzione README | ✅ completata |
+| M12 — Firma release stabile (keystore dedicato) + APK release installabile/aggiornabile | ✅ completata |
+| M13 — Ritaglio logo ruotabile (`CropFrame`) + 10 test JVM | ✅ completata |
 
 Repository privata: <https://github.com/PaoloPrandoniTechnology/business-card-scanner-android>
 (branch `main`, remote `origin`).
@@ -32,7 +34,10 @@ Gli APK non sono versionati nel repository (`*.apk` in `.gitignore`), vengono so
 
 Ultima verifica: `./gradlew assembleDebug` → **BUILD SUCCESSFUL**, APK in
 `app/build/outputs/apk/debug/app-debug.apk` (~60 MB, include il modello OCR bundled).
-`aapt2 dump badging` conferma: `package com.paoloprandoni.businesscard`, versione `1.0.0`,
+`./gradlew assembleRelease` → **BUILD SUCCESSFUL**, APK firmato in
+`app/build/outputs/apk/release/app-release.apk` (~54 MB), verificato con `apksigner verify`
+(certificato `CN=Paolo Prandoni, OU=Business Card Scanner`, schema V1+V2+V3).
+`aapt2 dump badging` conferma: `package com.paoloprandoni.businesscard`, versione `0.2.0-alpha`,
 `minSdkVersion 26`, `targetSdkVersion 35`, `compileSdkVersion 35`, permessi `CAMERA`,
 `READ_CONTACTS`, `WRITE_CONTACTS`, `GET_ACCOUNTS`.
 
@@ -80,14 +85,17 @@ Nessuna libreria di terze parti oltre a Google/AndroidX.
 .
 ├── CLAUDE.md                     # questo file (regole + architettura + stato)
 ├── README.md                     # presentazione del progetto (visibile sulla repo GitHub)
-├── docs/screenshots/             # screenshot usati nel README (da emulatore API 34)
+├── docs/screenshots/             # screenshot usati nel README (emulatore API 34, biglietto dell'autore)
 ├── .gitignore                    # esclude build/, .gradle/, .backups/, .androidsdk/, local.properties
 ├── settings.gradle.kts           # repo google()/mavenCentral(), inclusione :app
 ├── build.gradle.kts              # plugin dichiarati apply false
 ├── gradle.properties
 ├── gradle/libs.versions.toml     # Version Catalog
 ├── gradlew / gradlew.bat / gradle/wrapper/
+├── keystore/release.jks         # chiave di firma release (NON versionata)
+├── keystore.properties          # password/alias della chiave (NON versionato)
 ├── tools/backup.sh               # backup pre-modifica in .backups/ (regola obbligatoria)
+├── tools/install.sh              # build release + adb install -r (installazione senza dialoghi)
 ├── .backups/                     # backup con timestamp (NON versionato)
 ├── .androidsdk/                  # Android SDK locale usato per la build (NON versionato)
 └── app/
@@ -100,6 +108,7 @@ Nessuna libreria di terze parti oltre a Google/AndroidX.
         │   ├── MainActivity.kt
         │   ├── core/ServiceLocator.kt
         │   ├── domain/
+        │   │   ├── crop/CropFrame.kt              # rettangolo di ritaglio ruotabile (Kotlin puro)
         │   │   ├── model/BusinessCardData.kt      # modello contatto + ContactAccount
         │   │   ├── model/OcrResult.kt             # astrazione output OCR (linee + boundingBox)
         │   │   ├── ocr/OcrEngine.kt               # interfaccia motore OCR
@@ -167,6 +176,11 @@ Home ──"Scansiona"──▶ Camera (CameraX) ──foto──┐
   il nome). Ogni riga non classificata finisce nelle note: nessuna informazione viene persa.
 - **`LogoRegionSuggester`** costruisce una griglia di occupazione dai `boundingBox` OCR e propone
   come box iniziale di ritaglio la zona quadrata con minore sovrapposizione di testo.
+- **`CropFrame`** (dominio, Kotlin puro) descrive il rettangolo di ritaglio con centro, lati e
+  angolo: trascinamento, ridimensionamento dalle maniglie (l'angolo opposto resta fermo), rotazione
+  con aggancio a 0°/45°/90°, vincolo 1:1 e contenimento nell'immagine anche da ruotato.
+  `ImageProcessor.cropFrame` mappa i quattro vertici sul rettangolo dritto con
+  `Matrix.setPolyToPoly`, quindi il logo esce raddrizzato senza doppio campionamento.
 - **Salvataggio contatti:** un'unica `applyBatch` con back-reference al `RawContacts` appena
   inserito; l'account scelto viene scritto in `ACCOUNT_NAME`/`ACCOUNT_TYPE` (+ `DATA_SET` se
   presente) oppure `null`/`null` per il salvataggio locale sul dispositivo.
@@ -209,6 +223,11 @@ Home ──"Scansiona"──▶ Camera (CameraX) ──foto──┐
 
 8. **Commit:** messaggi in italiano, imperativi e sintetici; `main` come branch principale.
 
+9. **Firma release:** `keystore/release.jks` e `keystore.properties` non vanno **mai** committati
+   né condivisi (sono in `.gitignore`, insieme a `*.jks`/`*.keystore`). La chiave è l'unica cosa che
+   permette di aggiornare l'app installata: va conservata (backup fuori dal progetto). Se il file
+   `keystore.properties` manca, la release ricade sulla firma di debug per non rompere la build.
+
 ---
 
 ## 6. Build & run
@@ -218,6 +237,7 @@ Home ──"Scansiona"──▶ Camera (CameraX) ──foto──┐
 export ANDROID_HOME="$PWD/.androidsdk"
 
 ./gradlew assembleDebug          # APK → app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease        # APK firmato → app/build/outputs/apk/release/app-release.apk
 ./gradlew installDebug           # su device/emulatore collegato
 ```
 
@@ -227,9 +247,30 @@ Requisiti: JDK 17+ (testato con JDK 21), Android SDK platform 35 + build-tools 3
 ### Verifiche eseguite
 
 - `./gradlew assembleDebug` → BUILD SUCCESSFUL, APK generato e ispezionato con `aapt2 dump badging`.
+- `./gradlew assembleRelease` → BUILD SUCCESSFUL, APK firmato con la chiave release e verificato con
+  `apksigner verify --print-certs` (schema V1+V2+V3, un solo firmatario).
+
+### Installazione e avvisi di sicurezza Android
+
+Gli avvisi durante l'installazione di un APK **non dipendono dall'app** e non si possono eliminare
+con un flag di build: Android (o Google Play Protect) li mostra per qualunque APK installato fuori
+dal Play Store. Le contromisure realmente efficaci sono:
+
+| Situazione | Cosa si può fare |
+|---|---|
+| "Installa app sconosciute" per Files/Chrome | si concede **una volta** dalla app di origine; resta memorizzato |
+| Play Protect "app non analizzata / invio per la scansione" | disattivare la scansione in Play Store → Play Protect (scelta dell'utente, avviso legato al dispositivo) |
+| APK di debug: "app con firma di debug" | usare l'APK **release** firmato (`app-release.apk`) |
+| Aggiornamento rifiutato per firma diversa | stesso keystore: con la chiave release stabile l'update si installa sopra senza disinstallare |
+| Zero dialoghi in assoluto | `adb install -r` (USB debug attivo) oppure distribuzione via Play Store (internal testing) |
 - **Emulatore API 34** (x86_64, 1080×2280) con biglietto reale: `PipelineInstrumentedTest`
   (`app/src/androidTest/`, asset `sample_card.webp`) superato — import immagine, OCR ML Kit e
   parsing di nome, azienda, cellulare/ufficio/fax, email, sito, indirizzo e note.
+- **Screenshot del README** rigenerati sull'emulatore API 34 con il biglietto da visita dell'autore
+  (nessun biglietto di clienti pubblicato): home, fotocamera, revisione, ritaglio logo, contatto salvato.
+- **Rotazione del ritaglio** su emulatore: maniglia trascinata (−4,5°) e slider (−21°), con
+  anteprima nella revisione che mostra il logo ruotato; `./gradlew testDebugUnitTest` →
+  `CropFrameTest` 10/10 verde.
 - **Flusso UI completo su emulatore**: galleria → OCR → revisione → ritaglio logo → salvataggio.
   Contatto verificato con `content query`: 9 righe `Data` (nome, organizzazione, 3 telefoni, email,
   sito, indirizzo strutturato, note con testo OCR, foto).
@@ -252,5 +293,8 @@ Requisiti: JDK 17+ (testato con JDK 21), Android SDK platform 35 + build-tools 3
   di `BitmapFactory.decodeStream` con `inJustDecodeBounds` (sempre null) veniva interpretato come
   errore di lettura; ora l'esito è valutato su un flag esplicito. Il test strumentato copre questo
   caso per evitare regressioni.
+- **Rotazione del ritaglio (v0.2.0-alpha):** manuale (maniglia sopra il bordo o slider ±90°, passo
+  0,5° con aggancio a 0/45/90). Non c'è rilevamento automatico dell'inclinazione: su sfondi
+  texturizzati produrrebbe angoli sbagliati. Geometria in `domain/crop/CropFrame.kt` con test JVM.
 - Il suggerimento del box di ritaglio resta dentro l'area del biglietto (unione dei boundingBox) e
   preferisce la riga "brand" più grande nella parte alta, con fallback sull'area senza testo.

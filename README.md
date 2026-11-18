@@ -9,9 +9,9 @@ Nessun server, nessun account dell'app, nessun dato del biglietto inviato in ret
 
 | | |
 |---|---|
-| **Versione** | `0.1.1-alpha` (pre-release, APK di debug) |
+| **Versione** | `0.2.0-alpha` (pre-release, APK release firmato) |
 | **Requisiti** | Android 8.0+ (`minSdk 26`) · `targetSdk 35` |
-| **APK** | ~59 MB (modello OCR incluso, nessun download a runtime) |
+| **APK** | ~54 MB release firmata (modello OCR incluso, nessun download a runtime) |
 | **Lingua UI** | Italiano |
 | **Stato** | Alpha — flusso completo funzionante e verificato su emulatore API 34 |
 
@@ -41,11 +41,12 @@ Nessun server, nessun account dell'app, nessun dato del biglietto inviato in ret
 | Home | Fotocamera | Revisione dati |
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/01-home.png" width="240" alt="Schermata iniziale"> | <img src="docs/screenshots/02-camera.png" width="240" alt="Fotocamera con cornice guida"> | <img src="docs/screenshots/03-review.png" width="240" alt="Revisione dei dati estratti"> |
-| **Ritaglio logo** | **Contatto salvato** | |
-| <img src="docs/screenshots/04-crop.jpg" width="240" alt="Ritaglio interattivo del logo"> | <img src="docs/screenshots/05-saved.png" width="240" alt="Conferma salvataggio in rubrica"> | |
+| **Ritaglio logo (ruotabile)** | **Contatto salvato** | |
+| <img src="docs/screenshots/04-crop.jpg" width="240" alt="Ritaglio del logo con rettangolo ruotabile"> | <img src="docs/screenshots/05-saved.png" width="240" alt="Conferma salvataggio in rubrica"> | |
 
-> Screenshot catturati dall'emulatore Android 14 (API 34); l'anteprima della fotocamera mostra la
-> scena virtuale dell'emulatore.
+> Screenshot catturati dall'emulatore Android 14 (API 34) usando il biglietto da visita dell'autore:
+> nessun dato di clienti o terzi è pubblicato nel repository. L'anteprima della fotocamera mostra
+> la scena virtuale dell'emulatore.
 
 ---
 
@@ -60,10 +61,14 @@ Nessun server, nessun account dell'app, nessun dato del biglietto inviato in ret
   CEO, Founder…), azienda/ragione sociale, ruolo, telefono cellulare / ufficio / fax (prefissi
   internazionali come `+39` preservati), una o più email, sito web, indirizzo completo e note
   extra (P.IVA, codice fiscale, righe non riconosciute).
-- **Ritaglio logo** — editor interattivo (Canvas + gesture) con maniglie ridimensionabili,
+- **Ritaglio logo ruotabile** — editor interattivo (Canvas + gesture) con maniglie ridimensionabili,
   trascinamento dell'area, griglia dei terzi e vincolo 1:1. Il box iniziale viene proposto
   **dentro il biglietto**, attorno alla riga del brand, e come fallback sull'area con meno testo
   (usando i `boundingBox` di ML Kit).
+- **Rotazione del ritaglio**: il rettangolo si ruota con la maniglia sopra il bordo superiore o con
+  lo slider (±90°, aggancio automatico a 0°/45°/90°), così il logo esce dritto anche se il
+  biglietto è stato fotografato storto; bordi, griglia e maniglie seguono l'angolo e il rettangolo
+  resta sempre dentro la foto.
 - **Revisione** — form precompilato e interamente modificabile; il testo OCR grezzo resta in fondo
   al campo Note per copia-incolla rapido.
 - **Scelta della rubrica** — dropdown con gli account del dispositivo (`AccountManager` +
@@ -88,7 +93,7 @@ Home ──"Scansiona Biglietto"──▶ Camera (CameraX) ──foto──┐
                                                          ▼
                         BusinessCardParser: regex + euristiche + dizionari IT/EN
                                                          ▼
-     Revisione dati ◀──▶ Ritaglio logo (Canvas + gesture, 1:1)
+     Revisione dati ◀──▶ Ritaglio logo (Canvas + gesture, 1:1, ruotabile ±90°)
              │
              ▼
      ContactsRepository → rubrica Android (account scelto)
@@ -122,23 +127,34 @@ Regole utili emerse dai biglietti reali:
 
 ## Installazione
 
-### Dall'APK pubblicato
+### Dall'APK release firmato
 
-1. Apri la pagina delle release:
+1. Scarica `app-release.apk` dalle release:
    <https://github.com/PaoloPrandoniTechnology/business-card-scanner-android/releases>
-2. Scarica `business-card-scanner-<versione>-alpha.apk`.
-3. Apri il file sul telefono e consenti l'installazione da questa origine
-   (Impostazioni → App → Accesso speciale → Installa app sconosciute).
+2. Apri il file sul telefono.
+3. La prima volta Android chiede di consentire l'installazione da questa origine
+   (Files/Chrome): si accetta con il toggle — **la scelta viene ricordata** per le installazioni
+   successive della stessa app di origine.
 4. Avvia **Biglietti da Visita** e concedi i permessi fotocamera e rubrica.
 
-> La repository è **privata**: il download richiede l'accesso a GitHub con l'account proprietario.
-> L'APK è firmato con la chiave di debug, quindi Play Protect può mostrare un avviso.
+> Gli avvisi di Android e di Google Play Protect sono **del sistema**, non dell'app: non esiste un
+> flag di build che li sopprima per un APK installato fuori dal Play Store. L'APK è firmato con una
+> **chiave release stabile** (`keystore/release.jks`), quindi gli aggiornamenti futuri si installano
+> sopra la versione presente senza disinstallare e senza errore "firma diversa". Per una
+> distribuzione senza alcun dialogo serve il Play Store (traccia *internal testing*).
 
-### Da computer, via USB
+### Da computer, via USB (nessun dialogo sul telefono)
 
 ```bash
-adb install -r business-card-scanner-0.1.1-alpha.apk
+bash tools/install.sh          # assembleRelease + adb install -r
+# oppure
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
+
+### Se Play Protect continua a chiedere conferma
+
+Play Store → foto profilo → **Play Protect** → ingranaggio → disattiva la scansione delle app
+(oppure "Installa comunque" nel dialogo). È un'impostazione del dispositivo, reversibile.
 
 ---
 
@@ -149,8 +165,13 @@ Requisiti: **JDK 17+** (testato con JDK 21), Android SDK Platform 35 e Build-Too
 ```bash
 export ANDROID_HOME="$PWD/.androidsdk"   # SDK locale del progetto (cartella non versionata)
 ./gradlew assembleDebug                  # APK → app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease                # APK firmato → app/build/outputs/apk/release/app-release.apk
 ./gradlew installDebug                   # su dispositivo/emulatore collegato
 ```
+
+La build release usa la chiave stabile `keystore/release.jks` (credenziali in `keystore.properties`,
+entrambi esclusi da git). Senza quel file la release ricade sulla firma di debug. **La chiave va
+conservata**: è l'unica che permette di aggiornare l'app già installata.
 
 Il progetto si apre direttamente in Android Studio: `local.properties` punta già all'SDK locale;
 con un SDK di sistema basta aggiornare quella riga.
@@ -167,6 +188,7 @@ Test strumentato che riproduce la pipeline reale (import immagine → OCR → pa
 biglietto di esempio incluso negli asset:
 
 ```bash
+./gradlew testDebugUnitTest             # 10 test JVM sulla geometria del ritaglio
 ./gradlew connectedDebugAndroidTest     # richiede un device/emulatore collegato
 ```
 
@@ -259,11 +281,13 @@ presente) oppure su `null`/`null` per la memoria locale del telefono.
 
 ## Stato, verifiche e roadmap
 
-**Verificato** (emulatore Android 14, API 34, 1080×2280, biglietto reale "BIPIESSE"):
+**Verificato** (emulatore Android 14, API 34, 1080×2280, biglietto reale dell'autore):
 
 - import da galleria → OCR → revisione con dati corretti (nome, cognome, azienda, cellulare,
   ufficio, fax, email, sito, indirizzo);
 - ritaglio logo con anteprima nella schermata di revisione;
+- rotazione del ritaglio (maniglia trascinata e slider): il logo nell'anteprima esce ruotato,
+  quindi `ImageProcessor.cropFrame` applica davvero l'angolo;
 - salvataggio verificato sul database contatti: 9 righe `Data`, inclusa la foto;
 - test strumentato `connectedDebugAndroidTest` verde.
 
@@ -272,7 +296,6 @@ presente) oppure su `null`/`null` per la memoria locale del telefono.
 
 **Idee per le prossime versioni** (non implementate):
 
-- build release firmata e riduzione della dimensione dell'APK;
 - condivisione del contatto come vCard e cronologia delle scansioni;
 - supporto OCR multilingua (modelli aggiuntivi scaricabili);
 - miglioramento del parser su biglietti a due colonne.
@@ -280,6 +303,29 @@ presente) oppure su `null`/`null` per la memoria locale del telefono.
 ---
 
 ## Changelog
+
+### v0.2.0-alpha — 2026-11-18
+
+#### Ritaglio del logo ruotabile
+
+- Il rettangolo di ritaglio si **ruota**: maniglia sopra il bordo superiore oppure slider in basso
+  (±90° con aggancio a 0°/45°/90°), così il logo esce dritto anche se il biglietto è stato scattato
+  storto. Bordi, griglia dei terzi e maniglie seguono l'angolo.
+- Il ritaglio ruotato è calcolato mappando i quattro vertici del rettangolo sul risultato
+  (`Matrix.setPolyToPoly`), senza doppio campionamento.
+- Il rettangolo resta sempre dentro l'immagine: ruotandolo vicino ai bordi viene ridotto e
+  ricentrato invece di uscire dalla foto.
+- Nuova geometria `CropFrame` (Kotlin puro) coperta da 10 test JVM (`CropFrameTest`).
+- Suggerimento in basso accorciato: non viene più troncato sui telefoni stretti.
+
+#### Firma release stabile
+
+- Screenshot rigenerati con il biglietto da visita dell'autore al posto del biglietto di un cliente
+  (`docs/screenshots/`).
+- Aggiunto keystore dedicato e `signingConfigs` release in `app/build.gradle.kts`
+  (V1+V2+V3): l'APK release è installabile e aggiornabile sopra la versione precedente.
+- Aggiunto `tools/install.sh` (`assembleRelease` + `adb install -r`).
+- README: sezione installazione riscritta con la spiegazione degli avvisi di Android/Play Protect.
 
 ### v0.1.1-alpha — 2026-11-18
 
@@ -313,5 +359,7 @@ presente) oppure su `null`/`null` per la memoria locale del telefono.
 - Il parser è euristico: biglietti molto grafici, con più colonne o font decorativi possono
   richiedere correzioni manuali (la revisione è interamente editabile).
 - L'OCR può sbagliare singoli caratteri (nomi di dominio, civici): i campi restano modificabili.
-- L'APK pesa ~59 MB perché include il modello OCR: nessun download al primo avvio.
+- L'APK pesa ~54 MB (release firmata) perché include il modello OCR: nessun download al primo avvio.
+- La rotazione del ritaglio è manuale (maniglia o slider): non c'è un rilevamento automatico
+  dell'inclinazione, per non proporre angoli sbagliati su foto con sfondi texturizzati.
 - Non è prevista sincronizzazione o cronologia: ogni biglietto è una sessione.

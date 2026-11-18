@@ -4,12 +4,15 @@ import android.content.ContentResolver
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Matrix
-import android.graphics.RectF
+import android.graphics.Paint
 import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
+import com.paoloprandoni.businesscard.domain.crop.CropFrame
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -54,20 +57,42 @@ class ImageProcessor {
             BitmapFactory.decodeFile(file.absolutePath, options)
         }
 
-    /** Ritaglia usando un rettangolo normalizzato (0..1) sull'immagine. */
-    fun cropNormalized(bitmap: Bitmap, rect: RectF): Bitmap? {
-        val left = (rect.left.coerceIn(0f, 1f) * bitmap.width).toInt()
-        val top = (rect.top.coerceIn(0f, 1f) * bitmap.height).toInt()
-        val right = (rect.right.coerceIn(0f, 1f) * bitmap.width).toInt()
-        val bottom = (rect.bottom.coerceIn(0f, 1f) * bitmap.height).toInt()
-        val width = (right - left).coerceAtLeast(1)
-        val height = (bottom - top).coerceAtLeast(1)
-        val safeLeft = left.coerceIn(0, (bitmap.width - 1).coerceAtLeast(0))
-        val safeTop = top.coerceIn(0, (bitmap.height - 1).coerceAtLeast(0))
-        val safeWidth = width.coerceAtMost(bitmap.width - safeLeft)
-        val safeHeight = height.coerceAtMost(bitmap.height - safeTop)
-        if (safeWidth <= 0 || safeHeight <= 0) return null
-        return Bitmap.createBitmap(bitmap, safeLeft, safeTop, safeWidth, safeHeight)
+    /**
+     * Ritaglia il logo rispettando la rotazione del rettangolo: i quattro vertici del frame
+     * vengono mappati sui vertici del ritaglio, quindi un logo su un biglietto fotografato
+     * storto esce dritto (senza doppio campionamento).
+     */
+    fun cropFrame(
+        bitmap: Bitmap,
+        frame: CropFrame,
+        maxSide: Int = LOGO_MAX_SIDE,
+    ): Bitmap? {
+        if (frame.width < 1f || frame.height < 1f) return null
+        val scale = (maxSide / maxOf(frame.width, frame.height)).coerceAtMost(1f)
+        val outWidth = (frame.width * scale).roundToInt().coerceAtLeast(1)
+        val outHeight = (frame.height * scale).roundToInt().coerceAtLeast(1)
+
+        val corners = frame.corners()
+        val source = FloatArray(8) { index ->
+            val point = corners[index / 2]
+            if (index % 2 == 0) point.x else point.y
+        }
+        val destination = floatArrayOf(
+            0f, 0f,
+            outWidth.toFloat(), 0f,
+            outWidth.toFloat(), outHeight.toFloat(),
+            0f, outHeight.toFloat(),
+        )
+
+        val matrix = Matrix()
+        if (!matrix.setPolyToPoly(source, 0, destination, 0, 4)) return null
+        val output = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
+        Canvas(output).drawBitmap(
+            bitmap,
+            matrix,
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG),
+        )
+        return output
     }
 
     /** Salva il logo ritagliato ad alta risoluzione (la compressione avviene solo al salvataggio). */
@@ -185,6 +210,7 @@ class ImageProcessor {
 
     companion object {
         const val MAX_DECODE_DIMENSION = 2400
+        const val LOGO_MAX_SIDE = 1024
         const val MAX_CONTACT_PHOTO_SIDE = 512
         const val CONTACT_PHOTO_QUALITY = 90
         const val MAX_CONTACT_PHOTO_BYTES = 900_000
