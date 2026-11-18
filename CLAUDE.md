@@ -20,6 +20,9 @@ scegliendo l'account di destinazione.
 | M7 — Build `assembleDebug` + APK | ✅ completata |
 | M8 — Repository GitHub privata (commit + push) | ✅ completata |
 
+Repository privata: <https://github.com/PaoloPrandoniTechnology/business-card-scanner-android>
+(branch `main`, remote `origin`).
+
 Ultima verifica: `./gradlew assembleDebug` → **BUILD SUCCESSFUL**, APK in
 `app/build/outputs/apk/debug/app-debug.apk` (~60 MB, include il modello OCR bundled).
 `aapt2 dump badging` conferma: `package com.paoloprandoni.businesscard`, versione `1.0.0`,
