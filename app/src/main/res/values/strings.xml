@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Biglietti da Visita</string>
+
+    <string name="permission_camera_title">Accesso alla fotocamera</string>
+    <string name="permission_camera_rationale">Serve la fotocamera per scattare la foto del biglietto da visita. Le immagini restano sul dispositivo.</string>
+    <string name="permission_contacts_title">Accesso alla rubrica</string>
+    <string name="permission_contacts_rationale">Serve l\'accesso alla rubrica per mostrarti gli account disponibili e salvare il contatto che hai revisionato.</string>
+    <string name="permission_denied_title">Permesso non concesso</string>
+    <string name="permission_denied_message">Senza questo permesso non possiamo completare l\'operazione. Puoi abilitarlo dalle impostazioni di sistema.</string>
+    <string name="action_open_settings">Apri impostazioni</string>
+    <string name="action_cancel">Annulla</string>
+    <string name="action_continue">Continua</string>
+</resources>

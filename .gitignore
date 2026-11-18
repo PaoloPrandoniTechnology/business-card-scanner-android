@@ -1,0 +1,25 @@
+# Android / Gradle
+.gradle/
+build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.iml
+*.hprof
+
+# IDE
+.idea/
+.vscode/
+
+# Backup pre-modifica (regola di progetto)
+.backups/
+
+# Android SDK locale usato per compilare
+.androidsdk/
+
+# OS
+.DS_Store
+Thumbs.db
